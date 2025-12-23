@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tashkent Food Map</title>
+    <!-- Leaflet CSS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+
+        .popup-content {
+            padding: 15px;
+            min-width: 280px;
+        }
+        .popup-title {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+            border-bottom: 2px solid #0088cc;
+            padding-bottom: 5px;
+        }
+        .popup-detail {
+            margin: 8px 0;
+            color: #555;
+            display: flex;
+            align-items: center;
+        }
+        .popup-detail i {
+            margin-right: 10px;
+            width: 20px;
+            color: #0088cc;
+        }
+        .call-button {
+            background: #0088cc;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .call-button:hover {
+            background: #006699;
+        }
+
+        /* Filter bar */
+        .control-panel {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 25px;
+            border-radius: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            border: 2px solid #0088cc;
+        }
+        .control-panel select {
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 2px solid #0088cc;
+            font-size: 16px;
+            background: white;
+            min-width: 180px;
+            outline: none;
+        }
+        .app-title {
+            font-weight: bold;
+            color: #0088cc;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Location button */
+        .location-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            border: 2px solid #0088cc;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* Legend */
+        .legend {
+            position: fixed;
+            bottom: 30px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <div class="app-title">📍 Tashkent Food Guide</div>
+        <select id="categoryFilter">
+            <option value="all">All Food Places</option>
+            <option value="fastfood">🍔 Fast Food</option>
+            <option value="restaurant">🍽️ Restaurants</option>
+            <option value="cafe">☕ Cafes</option>
+            <option value="national">🇺🇿 National Food</option>
+        </select>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Legend -->
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF4757;"></div>
+            <span>Fast Food</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #2ED573;"></div>
+            <span>Restaurant</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FFA502;"></div>
+            <span>Cafe</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3742FA;"></div>
+            <span>National Food</span>
+        </div>
+    </div>
+
+    <!-- Location Button -->
+    <div class="location-btn" onclick="getUserLocation()">
+        📍
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <script>
+        // ========== TELEGRAM WEB APP INITIALIZATION ==========
+        console.log("Initializing Telegram Web App...");
+        const tg = window.Telegram.WebApp;
+
+        // Expand to full screen
+        tg.expand();
+        tg.ready();
+
+        console.log("Telegram User ID:", tg.initDataUnsafe.user?.id);
+        console.log("Platform:", tg.platform);
+
+        // ========== MAP INITIALIZATION ==========
+        console.log("Initializing map...");
+        // Center on Tashkent (latitude, longitude, zoom level)
+        const map = L.map('map').setView([41.2995, 69.2401], 13);
+
+        // Add OpenStreetMap tiles (FREE map service)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        console.log("Map initialized successfully");
+
+        // ========== TASHKENT FOOD PLACES DATA ==========
+        const tashkentPlaces = [
+            {
+                id: 1,
+                name: "Osh Markazi (Ош Маркази)",
+                category: "national",
+                lat: 41.3111,
+                lng: 69.2795,
+                phone: "+998 71 234-56-78",
+                address: "Мирзо Улуғбек тумани, Тошкент",
+                hours: "9:00 - 23:00",
+                description: "Анъанавий ўзбек таомлари"
+            },
+            {
+                id: 2,
+                name: "McDonald's",
+                category: "fastfood",
+                lat: 41.3239,
+                lng: 69.2594,
+                phone: "+998 90 123-45-67",
+                address: "Чорсу майдони, Тошкент",
+                hours: "24/7",
+                description: "International fast food"
+            },
+            {
+                id: 3,
+                name: "Evos",
+                category: "fastfood",
+                lat: 41.3153,
+                lng: 69.2951,
+                phone: "+998 97 123-45-67",
+                address: "Юнусобод тумани, Тошкент",
+                hours: "10:00 - 02:00",
+                description: "Burger restaurant"
+            },
+            {
+                id: 4,
+                name: "Anjir Restaurant",
+                category: "restaurant",
+                lat: 41.3078,
+                lng: 69.2672,
+                phone: "+998 55 234-56-78",
+                address: "Шайхонтоҳур тумани",
+                hours: "11:00 - 24:00",
+                description: "Ўзбек ва Европа овқатлари"
+            },
+            {
+                id: 5,
+                name: "Milliy Taomlar",
+                category: "national",
+                lat: 41.3276,
+                lng: 69.2292,
+                phone: "+998 66 234-56-78",
+                address: "Яккасарой тумани, Тошкент",
+                hours: "8:00 - 22:00",
+                description: "Хақиқий ўзбек таомлари"
+            },
+            {
+                id: 6,
+                name: "KFC",
+                category: "fastfood",
+                lat: 41.2831,
+                lng: 69.2017,
+                phone: "+998 91 234-56-78",
+                address: "Миробод тумани, Тошкент",
+                hours: "9:00 - 23:00",
+                description: "Fried chicken"
+            },
+            {
+                id: 7,
+                name: "Besh Qozon",
+                category: "national",
+                lat: 41.3382,
+                lng: 69.3345,
+                phone: "+998 71 222-33-44",
+                address: "Чилонзор тумани, Тошкент",
+                hours: "8:00 - 22:00",
+                description: "Ўзбек палов ресторани"
+            },
+            {
+                id: 8,
+                name: "Pizza Hut",
+                category: "fastfood",
+                lat: 41.2976,
+                lng: 69.1768,
+                phone: "+998 90 111-22-33",
+                address: "Яшнобод тумани, Тошкент",
+                hours: "10:00 - 23:00",
+                description: "Pizza restaurant"
+            },
+            {
+                id: 9,
+                name: "Cafe 1991",
+                category: "cafe",
+                lat: 41.3150,
+                lng: 69.2490,
+                phone: "+998 97 555-66-77",
+                address: "Миробод тумани, Тошкент",
+                hours: "8:00 - 00:00",
+                description: "Кофе ва десертлар"
+            }
+        ];
+
+        console.log(`Loaded ${tashkentPlaces.length} food places`);
+
+        // ========== CATEGORY COLORS ==========
+        const categoryColors = {
+            fastfood: '#FF4757',    // Red
+            restaurant: '#2ED573',  // Green
+            cafe: '#FFA502',        // Orange
+            national: '#3742FA'     // Blue
+        };
+
+        // ========== CREATE CUSTOM MARKERS ==========
+        function createCustomIcon(category, name) {
+            const color = categoryColors[category] || '#0088cc';
+
+            return L.divIcon({
+                html: `
+                    <div style="
+                        background: ${color};
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 50%;
+                        border: 3px solid white;
+                        box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-size: 20px;
+                        font-weight: bold;
+                    ">
+                        ${getCategoryEmoji(category)}
+                    </div>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40],
+                popupAnchor: [0, -40],
+                className: 'custom-marker'
+            });
+        }
+
+        function getCategoryEmoji(category) {
+            const emojis = {
+                fastfood: '🍔',
+                restaurant: '🍽️',
+                cafe: '☕',
+                national: '🇺🇿'
+            };
+            return emojis[category] || '📍';
+        }
+
+        // ========== ADD MARKERS TO MAP ==========
+        const markers = [];
+
+        tashkentPlaces.forEach(place => {
+            const marker = L.marker([place.lat, place.lng], {
+                icon: createCustomIcon(place.category, place.name)
+            }).bindPopup(`
+                <div class="popup-content">
+                    <div class="popup-title">${place.name}</div>
+
+                    <div class="popup-detail">
+                        <i>📍</i>
+                        <span>${place.address}</span>
+                    </div>
+
+                    <div class="popup-detail">
+                        <i>📞</i>
+                        <span><strong>Phone:</strong> ${place.phone}</span>
+                    </div>
+
+                    <div class="popup-detail">
+                        <i>🕒</i>
+                        <span><strong>Hours:</strong> ${place.hours}</span>
+                    </div>
+
+                    <div class="popup-detail">
+                        <i>🍽️</i>
+                        <span>${place.description}</span>
+                    </div>
+
+                    <button class="call-button" onclick="callNumber('${place.phone}', '${place.name}')">
+                        📞 Call ${place.name}
+                    </button>
+                </div>
+            `);
+
+            marker.addTo(map);
+            marker.placeData = place; // Attach data to marker
+            markers.push(marker);
+
+            console.log(`Added marker: ${place.name}`);
+        });
+
+        console.log("All markers added to map");
+
+        // ========== FILTER FUNCTIONALITY ==========
+        document.getElementById('categoryFilter').addEventListener('change', function(event) {
+            const selectedCategory = event.target.value;
+            console.log(`Filter changed to: ${selectedCategory}`);
+
+            markers.forEach(marker => {
+                if (selectedCategory === 'all' || marker.placeData.category === selectedCategory) {
+                    if (!map.hasLayer(marker)) {
+                        marker.addTo(map);
+                    }
+                } else {
+                    if (map.hasLayer(marker)) {
+                        map.removeLayer(marker);
+                    }
+                }
+            });
+
+            // Provide haptic feedback in Telegram
+            tg.HapticFeedback.impactOccurred('light');
+        });
+
+        // ========== CALL FUNCTION ==========
+        function callNumber(phoneNumber, placeName) {
+            console.log(`Attempting to call: ${placeName} - ${phoneNumber}`);
+
+            // Haptic feedback
+            tg.HapticFeedback.impactOccurred('medium');
+
+            // Show confirmation
+            tg.showConfirm(
+                `Call ${placeName}?`,
+                `Phone: ${phoneNumber}`,
+                (confirmed) => {
+                    if (confirmed) {
+                        console.log("User confirmed call");
+
+                        // Format phone number for tel: link
+                        const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
+
+                        // Open dialer
+                        window.open(`tel:${cleanPhone}`, '_blank');
+
+                        // Send analytics to bot (optional)
+                        tg.sendData(JSON.stringify({
+                            action: 'call_made',
+                            place: placeName,
+                            phone: cleanPhone,
+                            timestamp: new Date().toISOString()
+                        }));
+
+                        // Success haptic
+                        tg.HapticFeedback.notificationOccurred('success');
+                    }
+                }
+            );
+        }
+
+        // ========== GET USER LOCATION ==========
+        function getUserLocation() {
+            console.log("Getting user location...");
+            tg.HapticFeedback.impactOccurred('light');
+
+            if (!navigator.geolocation) {
+                tg.showAlert("Geolocation is not supported by your device");
+                return;
+            }
+
+            tg.showPopup({
+                title: "Location Access",
+                message: "Allow access to your location to find nearby food places?",
+                buttons: [
+                    {id: 'allow', type: 'default', text: 'Allow'},
+                    {type: 'cancel', text: 'Cancel'}
+                ]
+            }, (buttonId) => {
+                if (buttonId === 'allow') {
+                    navigator.geolocation.getCurrentPosition(
+                        // Success
+                        (position) => {
+                            const userLat = position.coords.latitude;
+                            const userLng = position.coords.longitude;
+
+                            console.log(`User location: ${userLat}, ${userLng}`);
+
+                            // Add user location marker
+                            const userMarker = L.marker([userLat, userLng], {
+                                icon: L.divIcon({
+                                    html: '<div style="background: #0088cc; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+                                    iconSize: [25, 25]
+                                })
+                            })
+                            .addTo(map)
+                            .bindPopup('📍 Your Location')
+                            .openPopup();
+
+                            // Center map on user
+                            map.setView([userLat, userLng], 15);
+
+                            tg.showAlert("Found your location! Zoomed in.");
+                        },
+                        // Error
+                        (error) => {
+                            console.error("Geolocation error:", error);
+                            tg.showAlert("Could not get your location. Please check permissions.");
+                        },
+                        // Options
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                }
+            });
+        }
+
+        // ========== INITIAL SUCCESS MESSAGE ==========
+        setTimeout(() => {
+            console.log("App fully loaded");
+            tg.HapticFeedback.notificationOccurred('success');
+
+            // Show welcome message
+            tg.showAlert("Welcome to Tashkent Food Guide! 🍴\n\n• Tap markers for details\n• Use filter to find specific types\n• Click 📍 for your location", "👋 Welcome!");
+        }, 1000);
+
+        // ========== TELEGRAM EVENT HANDLERS ==========
+        tg.onEvent('viewportChanged', (eventData) => {
+            console.log("Viewport changed:", eventData);
+        });
+
+        tg.onEvent('themeChanged', () => {
+            console.log("Theme changed to:", tg.colorScheme);
+        });
+
+    </script>
+</body>
+</html>
