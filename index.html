@@ -238,7 +238,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <script>
+        <script>
         // ========== TELEGRAM WEB APP INITIALIZATION ==========
         console.log("Initializing Telegram Web App...");
         const tg = window.Telegram.WebApp;
@@ -308,114 +308,16 @@
             return emojis[category] || '📍';
         }
         
-        // ========== FREE API 1: NOMINATIM (100% FREE, NO KEY) ==========
-        async function fetchFromNominatim() {
-            console.log("Fetching from Nominatim API...");
+        // ========== IMMEDIATE PLACES DATA (NO API DELAY) ==========
+        function getTashkentPlaces() {
+            console.log("Loading immediate places...");
+            updateStats("✅ Loading places...");
             
-            // Search for restaurants/cafes in Tashkent
-            const query = "ресторан кафе еда рестораны кафе Tashkent restaurant cafe food";
-            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=30&countrycodes=uz&viewbox=69.10,41.20,69.40,41.40&bounded=1`;
-            
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                console.log(`Nominatim found: ${data.length} places`);
-                
-                return data.map((place, index) => ({
-                    id: `n${index + 1}`,
-                    name: place.display_name.split(',')[0] || "Food Place",
-                    category: getCategoryFromOSM(place),
-                    lat: parseFloat(place.lat),
-                    lng: parseFloat(place.lon),
-                    phone: "+998 XX XXX XX XX",
-                    address: place.display_name.length > 100 ? place.display_name.substring(0, 100) + "..." : place.display_name,
-                    hours: "Not specified",
-                    rating: "N/A",
-                    description: place.type || place.class || "Food establishment",
-                    source: "OpenStreetMap",
-                    verified: false,
-                    icon: place.icon
-                }));
-                
-            } catch (error) {
-                console.error("Nominatim error:", error);
-                return [];
-            }
-        }
-        
-        function getCategoryFromOSM(place) {
-            const name = (place.display_name || "").toLowerCase();
-            
-            if (name.includes("mcdonald") || name.includes("kfc") || name.includes("evos") || name.includes("burger") || name.includes("pizza")) return "fastfood";
-            if (name.includes("cafe") || name.includes("coffee") || name.includes("кофе") || name.includes("кафе")) return "cafe";
-            if (name.includes("restaurant") || name.includes("ресторан")) return "restaurant";
-            if (name.includes("uzbek") || name.includes("plov") || name.includes("osh") || name.includes("узбек") || name.includes("плов")) return "national";
-            
-            return place.type === "cafe" ? "cafe" : "restaurant";
-        }
-        
-        // ========== FREE API 2: WIKIDATA (100% FREE, NO KEY) ==========
-        async function fetchFromWikidata() {
-            console.log("Fetching from Wikidata API...");
-            
-            // SPARQL query for restaurants in Tashkent
-            const sparqlQuery = `
-                SELECT ?item ?itemLabel ?location ?coord WHERE {
-                  ?item wdt:P31/wdt:P279* wd:Q11707.
-                  ?item wdt:P131 wd:Q269.
-                  OPTIONAL { ?item wdt:P625 ?coord. }
-                  SERVICE wikibase:label { bd:serviceParam wikibase:language "en,ru". }
-                }
-                LIMIT 20
-            `;
-            
-            const url = `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(sparqlQuery)}`;
-            
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                const places = data.results.bindings.map((binding, index) => {
-                    let lat = 41.2995 + (Math.random() * 0.05 - 0.025);
-                    let lng = 69.2401 + (Math.random() * 0.05 - 0.025);
-                    
-                    if (binding.coord) {
-                        const coords = binding.coord.value.replace('Point(', '').replace(')', '').split(' ');
-                        lng = parseFloat(coords[0]);
-                        lat = parseFloat(coords[1]);
-                    }
-                    
-                    return {
-                        id: `w${index + 1000}`,
-                        name: binding.itemLabel?.value || "Restaurant",
-                        category: "restaurant",
-                        lat: lat,
-                        lng: lng,
-                        phone: "+998 XX XXX XX XX",
-                        address: "Tashkent, Uzbekistan",
-                        hours: "Not specified",
-                        description: "Restaurant in Tashkent",
-                        source: "Wikidata",
-                        verified: true
-                    };
-                });
-                
-                console.log(`Wikidata found: ${places.length} places`);
-                return places;
-                
-            } catch (error) {
-                console.error("Wikidata error:", error);
-                return [];
-            }
-        }
-        
-        // ========== ENHANCED FALLBACK PLACES (Real Tashkent Places) ==========
-        function getEnhancedFallbackPlaces() {
+            // Return places immediately - no API wait
             return [
-                // Fast Food Chains
+                // Fast Food
                 {
-                    id: "f1",
+                    id: "1",
                     name: "McDonald's - Chorsu",
                     category: "fastfood",
                     lat: 41.3239,
@@ -424,12 +326,11 @@
                     address: "Chorsu Square, Tashkent",
                     hours: "24/7",
                     rating: "4.2/5",
-                    description: "International fast food chain",
-                    source: "Verified",
+                    description: "International fast food",
                     verified: true
                 },
                 {
-                    id: "f2",
+                    id: "2",
                     name: "KFC - Mirabad",
                     category: "fastfood",
                     lat: 41.2831,
@@ -438,12 +339,11 @@
                     address: "Mirabad District, Tashkent",
                     hours: "09:00 - 23:00",
                     rating: "4.1/5",
-                    description: "Fried chicken restaurant",
-                    source: "Verified",
+                    description: "Fried chicken",
                     verified: true
                 },
                 {
-                    id: "f3",
+                    id: "3",
                     name: "Evos - Yunusabad",
                     category: "fastfood",
                     lat: 41.3153,
@@ -452,28 +352,13 @@
                     address: "Yunusabad 9th Quarter, Tashkent",
                     hours: "10:00 - 02:00",
                     rating: "4.4/5",
-                    description: "Burger restaurant chain",
-                    source: "Verified",
+                    description: "Burger restaurant",
                     verified: true
                 },
+                // National Food
                 {
-                    id: "f4",
-                    name: "Pizza Hut",
-                    category: "fastfood",
-                    lat: 41.2976,
-                    lng: 69.1768,
-                    phone: "+998901112233",
-                    address: "Yashnabad District, Tashkent",
-                    hours: "10:00 - 23:00",
-                    description: "Pizza restaurant",
-                    source: "Verified",
-                    verified: true
-                },
-                
-                // National Uzbek Food
-                {
-                    id: "n1",
-                    name: "Osh Markazi (Ош Маркази)",
+                    id: "4",
+                    name: "Osh Markazi",
                     category: "national",
                     lat: 41.3111,
                     lng: 69.2795,
@@ -481,12 +366,11 @@
                     address: "Mirzo Ulugbek District, Tashkent",
                     hours: "09:00 - 23:00",
                     rating: "4.5/5",
-                    description: "Traditional Uzbek cuisine - pilaf, shurpa, manty",
-                    source: "Verified",
+                    description: "Traditional Uzbek cuisine",
                     verified: true
                 },
                 {
-                    id: "n2",
+                    id: "5",
                     name: "Besh Qozon",
                     category: "national",
                     lat: 41.3382,
@@ -496,27 +380,11 @@
                     hours: "08:00 - 22:00",
                     rating: "4.6/5",
                     description: "Uzbek pilaf restaurant",
-                    source: "Verified",
                     verified: true
                 },
-                {
-                    id: "n3",
-                    name: "Rayhon Milliy Taomlar",
-                    category: "national",
-                    lat: 41.3376,
-                    lng: 69.3345,
-                    phone: "+998712444444",
-                    address: "Chilanzar District, Tashkent",
-                    hours: "08:00 - 22:00",
-                    rating: "4.3/5",
-                    description: "Authentic Uzbek dishes - samsa, non, shashlik",
-                    source: "Verified",
-                    verified: true
-                },
-                
                 // Restaurants
                 {
-                    id: "r1",
+                    id: "6",
                     name: "Anjir Restaurant",
                     category: "restaurant",
                     lat: 41.3078,
@@ -525,14 +393,12 @@
                     address: "Shaykhontohur District, Tashkent",
                     hours: "11:00 - 24:00",
                     rating: "4.7/5",
-                    description: "Uzbek and European cuisine",
-                    source: "Verified",
+                    description: "Uzbek & European cuisine",
                     verified: true
                 },
-                
                 // Cafes
                 {
-                    id: "c1",
+                    id: "7",
                     name: "Cafe 1991",
                     category: "cafe",
                     lat: 41.3150,
@@ -541,12 +407,36 @@
                     address: "Mirabad District, Tashkent",
                     hours: "08:00 - 00:00",
                     rating: "4.4/5",
-                    description: "Coffee and desserts",
-                    source: "Verified",
+                    description: "Coffee & desserts",
+                    verified: true
+                },
+                // More places
+                {
+                    id: "8",
+                    name: "Pizza Hut",
+                    category: "fastfood",
+                    lat: 41.2976,
+                    lng: 69.1768,
+                    phone: "+998901112233",
+                    address: "Yashnabad District, Tashkent",
+                    hours: "10:00 - 23:00",
+                    description: "Pizza restaurant",
                     verified: true
                 },
                 {
-                    id: "c2",
+                    id: "9",
+                    name: "Rayhon Milliy Taomlar",
+                    category: "national",
+                    lat: 41.3376,
+                    lng: 69.3345,
+                    phone: "+998712444444",
+                    address: "Chilanzar District, Tashkent",
+                    hours: "08:00 - 22:00",
+                    description: "Authentic Uzbek dishes",
+                    verified: true
+                },
+                {
+                    id: "10",
                     name: "Star Coffee",
                     category: "cafe",
                     lat: 41.3270,
@@ -554,63 +444,10 @@
                     phone: "+998901234567",
                     address: "Yakkasaroy District, Tashkent",
                     hours: "07:00 - 23:00",
-                    description: "Coffee shop with desserts",
-                    source: "Verified",
+                    description: "Coffee shop",
                     verified: true
                 }
             ];
-        }
-        
-        // ========== MAIN FUNCTION TO GET ALL PLACES ==========
-        async function fetchRealTashkentPlaces() {
-            console.log("🌍 Searching for Tashkent food places...");
-            updateStats("🔄 Searching free APIs...");
-            
-            let allPlaces = [];
-            
-            // Try Nominatim API first (fastest)
-            try {
-                const nominatimPlaces = await fetchFromNominatim();
-                allPlaces = allPlaces.concat(nominatimPlaces);
-                console.log(`Nominatim: ${nominatimPlaces.length} places`);
-            } catch (e) {
-                console.log("Nominatim failed:", e.message);
-            }
-            
-            // If not enough places, try Wikidata
-            if (allPlaces.length < 5) {
-                try {
-                    const wikidataPlaces = await fetchFromWikidata();
-                    allPlaces = allPlaces.concat(wikidataPlaces);
-                    console.log(`Wikidata: ${wikidataPlaces.length} places`);
-                } catch (e) {
-                    console.log("Wikidata failed:", e.message);
-                }
-            }
-            
-            // Remove duplicates
-            const uniquePlaces = [];
-            const seenIds = new Set();
-            
-            allPlaces.forEach(place => {
-                if (!seenIds.has(place.id)) {
-                    seenIds.add(place.id);
-                    uniquePlaces.push(place);
-                }
-            });
-            
-            console.log(`Total unique API places: ${uniquePlaces.length}`);
-            
-            // If APIs returned places, use them
-            if (uniquePlaces.length >= 3) {
-                updateStats(`✅ Found ${uniquePlaces.length} places from free APIs`);
-                return uniquePlaces;
-            }
-            
-            // Otherwise use enhanced fallback
-            console.log("Using enhanced fallback data");
-            updateStats("⭐ Showing verified Tashkent places");
-            return getEnhancedFallbackPlaces();
         }
         
         // ========== ADD MARKERS TO MAP ==========
@@ -632,7 +469,7 @@
             currentPlaces = places;
             console.log(`Added ${places.length} markers to map`);
             
-            // Update stats
+            // Update stats immediately
             updateStats(`📍 ${places.length} food places loaded | Click markers for details`);
         }
         
@@ -640,8 +477,8 @@
             return `
                 <div class="popup-content">
                     <div class="popup-title">${place.name}</div>
-                    <div class="popup-verified" style="color: ${place.verified ? '#2ED573' : '#FFA502'}">
-                        ${place.verified ? '✅ Verified' : '🌐 Live Data'} | ${place.source}
+                    <div class="popup-verified" style="color: #2ED573">
+                        ✅ Verified Place
                     </div>
                     
                     <div class="popup-detail">
@@ -678,6 +515,24 @@
             `;
         }
         
+        // ========== INITIALIZE IMMEDIATELY ==========
+        function initializeApp() {
+            console.log("Starting app immediately...");
+            updateStats("Loading Tashkent food places...");
+            
+            // Get places immediately (no API delay)
+            const places = getTashkentPlaces();
+            
+            // Add markers immediately
+            addMarkersToMap(places);
+            
+            // Show success message
+            setTimeout(() => {
+                tg.showAlert(`✅ Loaded ${places.length} food places!\n\n• Tap markers for details\n• Use filter above to find specific types\n• Click 📍 for your location`, "Ready!");
+                tg.HapticFeedback.notificationOccurred('success');
+            }, 500);
+        }
+        
         // ========== FILTER FUNCTIONALITY ==========
         document.getElementById('categoryFilter').addEventListener('change', function(event) {
             const selectedCategory = event.target.value;
@@ -707,27 +562,14 @@
             
             tg.HapticFeedback.impactOccurred('medium');
             
-            tg.showConfirm(
-                `Call ${placeName}?`,
-                `Phone: ${phoneNumber}`,
-                (confirmed) => {
-                    if (confirmed) {
-                        console.log("User confirmed call");
-                        
-                        const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
-                        window.open(`tel:${cleanPhone}`, '_blank');
-                        
-                        tg.sendData(JSON.stringify({
-                            action: 'call_made',
-                            place: placeName,
-                            phone: cleanPhone,
-                            timestamp: new Date().toISOString()
-                        }));
-                        
-                        tg.HapticFeedback.notificationOccurred('success');
-                    }
-                }
-            );
+            // Format for click-to-call
+            const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
+            
+            // Show alert and call
+            if (confirm(`Call ${placeName}?\nPhone: ${phoneNumber}`)) {
+                window.open(`tel:${cleanPhone}`, '_blank');
+                tg.HapticFeedback.notificationOccurred('success');
+            }
         }
         
         // ========== GET USER LOCATION ==========
@@ -736,83 +578,38 @@
             tg.HapticFeedback.impactOccurred('light');
             
             if (!navigator.geolocation) {
-                tg.showAlert("Geolocation is not supported by your device");
+                alert("Geolocation is not supported by your device");
                 return;
             }
             
-            tg.showPopup({
-                title: "Location Access",
-                message: "Allow access to your location to find nearby food places?",
-                buttons: [
-                    {id: 'allow', type: 'default', text: 'Allow'},
-                    {type: 'cancel', text: 'Cancel'}
-                ]
-            }, (buttonId) => {
-                if (buttonId === 'allow') {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            const userLat = position.coords.latitude;
-                            const userLng = position.coords.longitude;
-                            
-                            console.log(`User location: ${userLat}, ${userLng}`);
-                            
-                            const userMarker = L.marker([userLat, userLng], {
-                                icon: L.divIcon({
-                                    html: '<div style="background: #0088cc; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
-                                    iconSize: [25, 25]
-                                })
+            if (confirm("Allow access to your location to find nearby food places?")) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const userLat = position.coords.latitude;
+                        const userLng = position.coords.longitude;
+                        
+                        console.log(`User location: ${userLat}, ${userLng}`);
+                        
+                        const userMarker = L.marker([userLat, userLng], {
+                            icon: L.divIcon({
+                                html: '<div style="background: #0088cc; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+                                iconSize: [25, 25]
                             })
-                            .addTo(map)
-                            .bindPopup('📍 Your Location')
-                            .openPopup();
-                            
-                            map.setView([userLat, userLng], 15);
-                            
-                            // Find nearest places
-                            findNearestPlaces(userLat, userLng);
-                        },
-                        (error) => {
-                            console.error("Geolocation error:", error);
-                            tg.showAlert("Could not get your location. Please check permissions.");
-                        },
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 0
-                        }
-                    );
-                }
-            });
-        }
-        
-        function findNearestPlaces(userLat, userLng) {
-            const placesWithDistance = currentPlaces.map(place => {
-                const distance = calculateDistance(userLat, userLng, place.lat, place.lng);
-                return { ...place, distance };
-            });
-            
-            // Sort by distance
-            placesWithDistance.sort((a, b) => a.distance - b.distance);
-            
-            // Show top 3 nearest
-            const nearest = placesWithDistance.slice(0, 3);
-            let message = "📍 Nearest food places:\n\n";
-            nearest.forEach((place, index) => {
-                message += `${index + 1}. ${place.name}\n   ${place.distance.toFixed(1)} km away\n\n`;
-            });
-            
-            tg.showAlert(message, "🚶 Nearest Places");
-        }
-        
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+                        })
+                        .addTo(map)
+                        .bindPopup('📍 Your Location')
+                        .openPopup();
+                        
+                        map.setView([userLat, userLng], 15);
+                        
+                        alert("Found your location! Zoomed in.");
+                    },
+                    (error) => {
+                        console.error("Geolocation error:", error);
+                        alert("Could not get your location. Please check permissions.");
+                    }
+                );
+            }
         }
         
         // ========== STATS BAR ==========
@@ -823,39 +620,8 @@
             }
         }
         
-        // ========== INITIALIZATION ==========
-        async function initializeApp() {
-            console.log("Initializing app...");
-            
-            // Show welcome message
-            tg.showAlert("Welcome to Tashkent Food Guide! 🍴\n\nLoading food places...", "👋 Welcome!");
-            
-            // Load data
-            const realPlaces = await fetchRealTashkentPlaces();
-            
-            // Add markers to map
-            addMarkersToMap(realPlaces);
-            
-            // Success message
-            tg.HapticFeedback.notificationOccurred('success');
-            
-            setTimeout(() => {
-                tg.showAlert(`✅ Loaded ${realPlaces.length} food places!\n\n• Tap markers for details\n• Use filter to find specific types\n• Click 📍 for your location`, "Ready!");
-            }, 1000);
-        }
-        
-        // ========== START THE APP ==========
+        // ========== START THE APP IMMEDIATELY ==========
         initializeApp();
-        
-        // ========== TELEGRAM EVENT HANDLERS ==========
-        tg.onEvent('viewportChanged', (eventData) => {
-            console.log("Viewport changed");
-        });
-        
-        tg.onEvent('themeChanged', () => {
-            console.log("Theme changed to:", tg.colorScheme);
-        });
-        
     </script>
 </body>
 </html>
