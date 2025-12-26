@@ -1,627 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tashkent Food Map - Real Places</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        #map { height: 100vh; width: 100vw; }
-        
-        .popup-content {
-            padding: 15px;
-            min-width: 280px;
-            max-width: 320px;
-        }
-        .popup-title {
-            color: #333;
-            margin-bottom: 5px;
-            font-size: 18px;
-            border-bottom: 2px solid #0088cc;
-            padding-bottom: 5px;
-        }
-        .popup-verified {
-            font-size: 12px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .popup-detail {
-            margin: 8px 0;
-            color: #555;
-            display: flex;
-            align-items: flex-start;
-        }
-        .popup-detail i {
-            margin-right: 10px;
-            width: 20px;
-            color: #0088cc;
-            margin-top: 2px;
-        }
-        .call-button {
-            background: #0088cc;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            width: 100%;
-            margin-top: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: all 0.3s;
-        }
-        .call-button:hover {
-            background: #006699;
-            transform: translateY(-2px);
-        }
-        
-        .control-panel {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px 25px;
-            border-radius: 25px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            backdrop-filter: blur(10px);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            border: 2px solid #0088cc;
-        }
-        .control-panel select {
-            padding: 10px 20px;
-            border-radius: 20px;
-            border: 2px solid #0088cc;
-            font-size: 16px;
-            background: white;
-            min-width: 180px;
-            outline: none;
-            cursor: pointer;
-        }
-        .app-title {
-            font-weight: bold;
-            color: #0088cc;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .location-btn {
-            position: fixed;
-            bottom: 30px;
-            right: 20px;
-            z-index: 1000;
-            background: white;
-            border: 2px solid #0088cc;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            transition: all 0.3s;
-        }
-        .location-btn:hover {
-            transform: scale(1.1);
-            background: #0088cc;
-            color: white;
-        }
-        
-        .legend {
-            position: fixed;
-            bottom: 30px;
-            left: 20px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            backdrop-filter: blur(5px);
-            border: 2px solid #0088cc;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 5px 0;
-            font-size: 14px;
-        }
-        .legend-color {
-            width: 15px;
-            height: 15px;
-            border-radius: 50%;
-            margin-right: 10px;
-            border: 2px solid white;
-        }
-        
-        .loading-popup {
-            padding: 20px;
-            text-align: center;
-            font-size: 16px;
-            color: #333;
-        }
-        .loading-popup::after {
-            content: '';
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #0088cc;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-left: 10px;
-            vertical-align: middle;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .stats-bar {
-            position: fixed;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            color: #333;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            text-align: center;
-            min-width: 300px;
-        }
-    </style>
-</head>
-<body>
-    <!-- Control Panel -->
-    <div class="control-panel">
-        <div class="app-title">📍 Tashkent Food Guide</div>
-        <select id="categoryFilter">
-            <option value="all">All Food Places</option>
-            <option value="fastfood">🍔 Fast Food</option>
-            <option value="restaurant">🍽️ Restaurants</option>
-            <option value="cafe">☕ Cafes</option>
-            <option value="national">🇺🇿 National Food</option>
-        </select>
-    </div>
-    
-    <!-- Stats Bar -->
-    <div class="stats-bar" id="statsBar">
-        Loading Tashkent food places...
-    </div>
-    
-    <!-- Map Container -->
-    <div id="map"></div>
-    
-    <!-- Legend -->
-    <div class="legend">
-        <div class="legend-item">
-            <div class="legend-color" style="background: #FF4757;"></div>
-            <span>Fast Food</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #2ED573;"></div>
-            <span>Restaurant</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #FFA502;"></div>
-            <span>Cafe</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #3742FA;"></div>
-            <span>National Food</span>
-        </div>
-    </div>
-    
-    <!-- Location Button -->
-    <div class="location-btn" onclick="getUserLocation()">
-        📍
-    </div>
+#!/usr/bin/env python3
+"""
+Telegram Bot for Uzbek Food Map
+Compatible with python-telegram-bot 21.0
+"""
 
-    <!-- Scripts -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-        <script>
-        // ========== TELEGRAM WEB APP INITIALIZATION ==========
-        console.log("Initializing Telegram Web App...");
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-        tg.ready();
-        
-        // ========== MAP INITIALIZATION ==========
-        console.log("Initializing map...");
-        const map = L.map('map').setView([41.2995, 69.2401], 13);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        }).addTo(map);
-        
-        console.log("Map initialized successfully");
-        
-        // ========== GLOBAL VARIABLES ==========
-        let allMarkers = [];
-        let currentPlaces = [];
-        
-        // ========== CATEGORY COLORS ==========
-        const categoryColors = {
-            fastfood: '#FF4757',
-            restaurant: '#2ED573',
-            cafe: '#FFA502',
-            national: '#3742FA'
-        };
-        
-        // ========== CREATE CUSTOM MARKERS ==========
-        function createCustomIcon(category, name) {
-            const color = categoryColors[category] || '#0088cc';
-            
-            return L.divIcon({
-                html: `
-                    <div style="
-                        background: ${color};
-                        width: 40px;
-                        height: 40px;
-                        border-radius: 50%;
-                        border: 3px solid white;
-                        box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        color: white;
-                        font-size: 20px;
-                        font-weight: bold;
-                    ">
-                        ${getCategoryEmoji(category)}
-                    </div>
-                `,
-                iconSize: [40, 40],
-                iconAnchor: [20, 40],
-                popupAnchor: [0, -40],
-                className: 'custom-marker'
-            });
-        }
-        
-        function getCategoryEmoji(category) {
-            const emojis = {
-                fastfood: '🍔',
-                restaurant: '🍽️',
-                cafe: '☕',
-                national: '🇺🇿'
-            };
-            return emojis[category] || '📍';
-        }
-        
-        // ========== IMMEDIATE PLACES DATA (NO API DELAY) ==========
-        function getTashkentPlaces() {
-            console.log("Loading immediate places...");
-            updateStats("✅ Loading places...");
-            
-            // Return places immediately - no API wait
-            return [
-                // Fast Food
-                {
-                    id: "1",
-                    name: "McDonald's - Chorsu",
-                    category: "fastfood",
-                    lat: 41.3239,
-                    lng: 69.2594,
-                    phone: "+998712001122",
-                    address: "Chorsu Square, Tashkent",
-                    hours: "24/7",
-                    rating: "4.2/5",
-                    description: "International fast food",
-                    verified: true
-                },
-                {
-                    id: "2",
-                    name: "KFC - Mirabad",
-                    category: "fastfood",
-                    lat: 41.2831,
-                    lng: 69.2017,
-                    phone: "+998712345678",
-                    address: "Mirabad District, Tashkent",
-                    hours: "09:00 - 23:00",
-                    rating: "4.1/5",
-                    description: "Fried chicken",
-                    verified: true
-                },
-                {
-                    id: "3",
-                    name: "Evos - Yunusabad",
-                    category: "fastfood",
-                    lat: 41.3153,
-                    lng: 69.2951,
-                    phone: "+998787770022",
-                    address: "Yunusabad 9th Quarter, Tashkent",
-                    hours: "10:00 - 02:00",
-                    rating: "4.4/5",
-                    description: "Burger restaurant",
-                    verified: true
-                },
-                // National Food
-                {
-                    id: "4",
-                    name: "Osh Markazi",
-                    category: "national",
-                    lat: 41.3111,
-                    lng: 69.2795,
-                    phone: "+998712333333",
-                    address: "Mirzo Ulugbek District, Tashkent",
-                    hours: "09:00 - 23:00",
-                    rating: "4.5/5",
-                    description: "Traditional Uzbek cuisine",
-                    verified: true
-                },
-                {
-                    id: "5",
-                    name: "Besh Qozon",
-                    category: "national",
-                    lat: 41.3382,
-                    lng: 69.3345,
-                    phone: "+998712555555",
-                    address: "Chilanzar District, Tashkent",
-                    hours: "08:00 - 22:00",
-                    rating: "4.6/5",
-                    description: "Uzbek pilaf restaurant",
-                    verified: true
-                },
-                // Restaurants
-                {
-                    id: "6",
-                    name: "Anjir Restaurant",
-                    category: "restaurant",
-                    lat: 41.3078,
-                    lng: 69.2672,
-                    phone: "+998712005555",
-                    address: "Shaykhontohur District, Tashkent",
-                    hours: "11:00 - 24:00",
-                    rating: "4.7/5",
-                    description: "Uzbek & European cuisine",
-                    verified: true
-                },
-                // Cafes
-                {
-                    id: "7",
-                    name: "Cafe 1991",
-                    category: "cafe",
-                    lat: 41.3150,
-                    lng: 69.2490,
-                    phone: "+998975556677",
-                    address: "Mirabad District, Tashkent",
-                    hours: "08:00 - 00:00",
-                    rating: "4.4/5",
-                    description: "Coffee & desserts",
-                    verified: true
-                },
-                // More places
-                {
-                    id: "8",
-                    name: "Pizza Hut",
-                    category: "fastfood",
-                    lat: 41.2976,
-                    lng: 69.1768,
-                    phone: "+998901112233",
-                    address: "Yashnabad District, Tashkent",
-                    hours: "10:00 - 23:00",
-                    description: "Pizza restaurant",
-                    verified: true
-                },
-                {
-                    id: "9",
-                    name: "Rayhon Milliy Taomlar",
-                    category: "national",
-                    lat: 41.3376,
-                    lng: 69.3345,
-                    phone: "+998712444444",
-                    address: "Chilanzar District, Tashkent",
-                    hours: "08:00 - 22:00",
-                    description: "Authentic Uzbek dishes",
-                    verified: true
-                },
-                {
-                    id: "10",
-                    name: "Star Coffee",
-                    category: "cafe",
-                    lat: 41.3270,
-                    lng: 69.2495,
-                    phone: "+998901234567",
-                    address: "Yakkasaroy District, Tashkent",
-                    hours: "07:00 - 23:00",
-                    description: "Coffee shop",
-                    verified: true
-                }
-            ];
-        }
-        
-        // ========== ADD MARKERS TO MAP ==========
-        function addMarkersToMap(places) {
-            // Clear existing markers
-            allMarkers.forEach(marker => map.removeLayer(marker));
-            allMarkers = [];
-            
-            places.forEach(place => {
-                const marker = L.marker([place.lat, place.lng], {
-                    icon: createCustomIcon(place.category, place.name)
-                }).bindPopup(createPopupContent(place));
-                
-                marker.addTo(map);
-                marker.placeData = place;
-                allMarkers.push(marker);
-            });
-            
-            currentPlaces = places;
-            console.log(`Added ${places.length} markers to map`);
-            
-            // Update stats immediately
-            updateStats(`📍 ${places.length} food places loaded | Click markers for details`);
-        }
-        
-        function createPopupContent(place) {
-            return `
-                <div class="popup-content">
-                    <div class="popup-title">${place.name}</div>
-                    <div class="popup-verified" style="color: #2ED573">
-                        ✅ Verified Place
-                    </div>
-                    
-                    <div class="popup-detail">
-                        <i>📍</i>
-                        <span>${place.address}</span>
-                    </div>
-                    
-                    <div class="popup-detail">
-                        <i>📞</i>
-                        <span><strong>Phone:</strong> ${place.phone}</span>
-                    </div>
-                    
-                    <div class="popup-detail">
-                        <i>🕒</i>
-                        <span><strong>Hours:</strong> ${place.hours}</span>
-                    </div>
-                    
-                    ${place.rating ? `
-                    <div class="popup-detail">
-                        <i>⭐</i>
-                        <span><strong>Rating:</strong> ${place.rating}</span>
-                    </div>
-                    ` : ''}
-                    
-                    <div class="popup-detail">
-                        <i>🍽️</i>
-                        <span>${place.description}</span>
-                    </div>
-                    
-                    <button class="call-button" onclick="callNumber('${place.phone}', '${place.name}')">
-                        📞 Call ${place.name}
-                    </button>
-                </div>
-            `;
-        }
-        
-        // ========== INITIALIZE IMMEDIATELY ==========
-        function initializeApp() {
-            console.log("Starting app immediately...");
-            updateStats("Loading Tashkent food places...");
-            
-            // Get places immediately (no API delay)
-            const places = getTashkentPlaces();
-            
-            // Add markers immediately
-            addMarkersToMap(places);
-            
-            // Show success message
-            setTimeout(() => {
-                tg.showAlert(`✅ Loaded ${places.length} food places!\n\n• Tap markers for details\n• Use filter above to find specific types\n• Click 📍 for your location`, "Ready!");
-                tg.HapticFeedback.notificationOccurred('success');
-            }, 500);
-        }
-        
-        // ========== FILTER FUNCTIONALITY ==========
-        document.getElementById('categoryFilter').addEventListener('change', function(event) {
-            const selectedCategory = event.target.value;
-            
-            allMarkers.forEach(marker => {
-                if (selectedCategory === 'all' || marker.placeData.category === selectedCategory) {
-                    if (!map.hasLayer(marker)) {
-                        marker.addTo(map);
-                    }
-                } else {
-                    if (map.hasLayer(marker)) {
-                        map.removeLayer(marker);
-                    }
-                }
-            });
-            
-            // Update stats
-            const visibleCount = allMarkers.filter(m => map.hasLayer(m)).length;
-            updateStats(`👁️ ${visibleCount} places visible | Filter: ${selectedCategory === 'all' ? 'All' : selectedCategory}`);
-            
-            tg.HapticFeedback.impactOccurred('light');
-        });
-        
-        // ========== CALL FUNCTION ==========
-        function callNumber(phoneNumber, placeName) {
-            console.log(`Attempting to call: ${placeName} - ${phoneNumber}`);
-            
-            tg.HapticFeedback.impactOccurred('medium');
-            
-            // Format for click-to-call
-            const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
-            
-            // Show alert and call
-            if (confirm(`Call ${placeName}?\nPhone: ${phoneNumber}`)) {
-                window.open(`tel:${cleanPhone}`, '_blank');
-                tg.HapticFeedback.notificationOccurred('success');
-            }
-        }
-        
-        // ========== GET USER LOCATION ==========
-        function getUserLocation() {
-            console.log("Getting user location...");
-            tg.HapticFeedback.impactOccurred('light');
-            
-            if (!navigator.geolocation) {
-                alert("Geolocation is not supported by your device");
-                return;
-            }
-            
-            if (confirm("Allow access to your location to find nearby food places?")) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const userLat = position.coords.latitude;
-                        const userLng = position.coords.longitude;
-                        
-                        console.log(`User location: ${userLat}, ${userLng}`);
-                        
-                        const userMarker = L.marker([userLat, userLng], {
-                            icon: L.divIcon({
-                                html: '<div style="background: #0088cc; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
-                                iconSize: [25, 25]
-                            })
-                        })
-                        .addTo(map)
-                        .bindPopup('📍 Your Location')
-                        .openPopup();
-                        
-                        map.setView([userLat, userLng], 15);
-                        
-                        alert("Found your location! Zoomed in.");
-                    },
-                    (error) => {
-                        console.error("Geolocation error:", error);
-                        alert("Could not get your location. Please check permissions.");
-                    }
-                );
-            }
-        }
-        
-        // ========== STATS BAR ==========
-        function updateStats(message) {
-            const statsBar = document.getElementById('statsBar');
-            if (statsBar) {
-                statsBar.textContent = message;
-            }
-        }
-        
-        // ========== START THE APP IMMEDIATELY ==========
-        initializeApp();
-    </script>
-</body>
-</html>
+import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+
+# ========== CONFIGURATION ==========
+# Get token from environment variable
+TOKEN = os.getenv("BOT_TOKEN", "8072469050:AAEci8K1Fiv7G0jLWd2Jx_vBCabCSyMn640")
+
+# UPDATE THIS URL to your actual GitHub URL
+MINI_APP_URL = "https://cat-k235.github.io/tashkent-food-telegram-app/"
+
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message when the command /start is issued."""
+    user = update.effective_user
+
+    # Create keyboard with Mini App button
+    keyboard = [
+        [InlineKeyboardButton("🗺️ OPEN FOOD MAP", web_app={"url": MINI_APP_URL})],
+        [InlineKeyboardButton("📍 Find Near Me", callback_data="location")],
+        [InlineKeyboardButton("📞 Contact Support", url="https://t.me/yourusername")]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        f"🍽️ *Assalomu alaykum, {user.first_name}!*\n\n"
+        "*O'zbekiston Oziq-ovqat Xaritasi* ga xush kelibsiz!\n\n"
+        "✅ *Qanday foydalanish:*\n"
+        "1. Quyidagi tugmani bosing\n"
+        "2. Xaritadan ovqatlanish joylarini toping\n"
+        "3. Telefon raqamlarini ko'ring\n"
+        "4. To'g'ridan-to'g'ri qo'ng'iroq qiling\n\n"
+        "📍 *Toshkent shahridagi barcha restoranlar, kafelar va tez ovqat joylari*",
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
+    )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text(
+        "🆘 *Yordam:*\n\n"
+        "*/start* - Botni ishga tushirish\n"
+        "*/help* - Yordam olish\n"
+        "*/map* - Xaritani ochish\n\n"
+        "📍 *Muammo bo'lsa:*\n"
+        "1. Internet aloqangizni tekshiring\n"
+        "2. Botni qayta ishga tushiring: /start\n"
+        "3. @yourusername ga murojaat qiling",
+        parse_mode='Markdown'
+    )
+
+
+async def map_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /map command - directly opens Mini App."""
+    keyboard = [[InlineKeyboardButton("🗺️ Hozir ochish", web_app={"url": MINI_APP_URL})]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "Toshkent oziq-ovqat xaritasi ochilmoqda...",
+        reply_markup=reply_markup
+    )
+
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button callbacks."""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "location":
+        await query.message.reply_text(
+            "📍 *Joylashuvingizni topish:*\n\n"
+            "1. Xaritani oching (pastdagi tugma)\n"
+            "2. 📍 belgisini bosing\n"
+            "3. Joylashuvga ruxsat bering\n"
+            "4. Xarita sizning joylashuvingizga yaqinlashadi\n\n"
+            "Eng yaqin ovqatlanish joylarini toping!",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗺️ Xaritani ochish", web_app={"url": MINI_APP_URL})]
+            ]),
+            parse_mode='Markdown'
+        )
+
+
+def main():
+    """Start the bot."""
+    # Create Application
+    application = Application.builder().token(TOKEN).build()
+
+    # Add command handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("map", map_command))
+
+    # Add callback query handler
+    application.add_handler(CallbackQueryHandler(button_handler))
+
+    # Start the bot
+    logger.info("🤖 Bot ishga tushmoqda... @uzbekfoodmapbot")
+    logger.info(f"✅ Token: {TOKEN[:10]}...")  # Show only first 10 chars for security
+    application.run_polling()
+
+
+if __name__ == '__main__':
+    main()
