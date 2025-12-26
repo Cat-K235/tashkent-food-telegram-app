@@ -14,6 +14,7 @@
   * {margin: 0; padding: 0; box-sizing: border-box;}
   body {font-family: system-ui, sans-serif;}
   #map {height: 100vh; width: 100vw;}
+
   .stats {
       position: fixed;
       top: 10px;
@@ -26,9 +27,28 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);
       z-index: 1001;
   }
+
+  #searchBar {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1002;
+      background: rgba(255,255,255,0.95);
+      padding: 6px 12px;
+      border-radius: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  #searchInput {
+      padding:4px 8px;
+      border-radius:12px;
+      border:1px solid #ccc;
+      width:200px;
+  }
+
   .filter-buttons {
       position: fixed;
-      top: 50px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(255,255,255,0.95);
@@ -36,18 +56,21 @@
       border-radius: 20px;
       font-size: 14px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      z-index: 1001;
+      z-index: 1002;
+      display: flex;
+      gap: 8px;
   }
   .filter-buttons button {
-      margin: 0 4px;
-      padding: 4px 10px;
+      padding: 6px 12px;
       border: none;
       border-radius: 12px;
       cursor: pointer;
       font-weight: bold;
       color: white;
+      transition: transform 0.1s, box-shadow 0.1s;
   }
-  .filter-active {box-shadow: 0 0 0 2px white inset;}
+  .filter-active { transform: scale(1.1); box-shadow: 0 0 0 2px white inset; }
+
   .popup-card {min-width: 220px;}
   .popup-header {font-weight: bold; font-size: 16px; margin-bottom: 4px;}
   .popup-body {font-size: 14px; color: #333;}
@@ -61,12 +84,24 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     pointer-events: none;
   }
+  /* Hover enlarge effect for icons */
+  .custom-icon:hover {
+    transform: scale(1.5);
+    transition: transform 0.2s;
+  }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="stats" class="stats">Loading real food places...</div>
+
+<!-- Search bar -->
+<div id="searchBar">
+  <input type="text" id="searchInput" placeholder="Search restaurant by name..." />
+</div>
+
+<!-- Filter buttons -->
 <div class="filter-buttons">
   <button id="filter-all" style="background:#3742fa;">All</button>
   <button id="filter-fastfood" style="background:#FF4757;">🍔 Fast Food</button>
@@ -88,16 +123,23 @@ const stats = document.getElementById('stats');
 const markerCluster = L.markerClusterGroup();
 let allPlaces = [];
 let activeFilter = "all";
+let searchQuery = "";
 
-// Icons and colors
 const icons = {fastfood:'🍔', cafe:'☕', restaurant:'🍽️'};
 const colors = {fastfood:'#FF4757', cafe:'#FFA502', restaurant:'#2ED573'};
+
+// Search input
+const searchInput = document.getElementById("searchInput");
+searchInput.addEventListener("input", ()=>{
+  searchQuery = searchInput.value.trim().toLowerCase();
+  addMarkersToMap(allPlaces);
+});
 
 function updateStats(text){ stats.textContent = text; }
 
 // Fetch OSM places
 async function fetchRealTashkentPlaces() {
-  updateStats("🔄 Loading real food places...");
+  updateStats("🔄 Loading food places...");
   const bbox = "41.25,69.15,41.37,69.35";
   const query = `[out:json][timeout:25];(node["amenity"~"restaurant|cafe|fast_food|bar|food_court"](${bbox}););out body;`;
 
@@ -112,7 +154,7 @@ async function fetchRealTashkentPlaces() {
 
     allPlaces = data.elements
       .filter(e=>e.type==='node' && e.lat && e.lon)
-      .map(e=>({
+      .map(e=>(({
         id:e.id,
         name:e.tags?.name || "Unnamed place",
         category:e.tags?.amenity==="fast_food"?"fastfood":e.tags?.amenity==="cafe"?"cafe":"restaurant",
@@ -122,9 +164,8 @@ async function fetchRealTashkentPlaces() {
         address:e.tags?.["addr:street"]?`${e.tags["addr:street"]}, Tashkent`:"Tashkent",
         hours:e.tags?.opening_hours || "Not specified",
         cuisine:e.tags?.cuisine || "General"
-      }));
+      })) );
 
-    updateStats(`✅ Loaded ${allPlaces.length} real food places`);
     localStorage.setItem("tashkentFoodData", JSON.stringify(allPlaces));
     addMarkersToMap(allPlaces);
   }catch(err){
@@ -138,42 +179,82 @@ async function fetchRealTashkentPlaces() {
 // Add markers
 function addMarkersToMap(places){
   markerCluster.clearLayers();
-  places.filter(p=>activeFilter==="all" || p.category===activeFilter).forEach(p=>{
-    const icon = L.divIcon({
-      html:`<div style="
-        background:${colors[p.category]};
-        width:28px;height:28px;
-        border-radius:50%;
-        border:2px solid white;
-        display:flex;align-items:center;justify-content:center;
-        color:white;font-size:16px;">${icons[p.category]}</div>`,
-      className:"custom-icon",
-      iconSize:[28,28],
-      iconAnchor:[14,28],
-      popupAnchor:[0,-28]
-    });
-    const marker = L.marker([p.lat,p.lng],{icon});
+  places
+    .filter(p => (activeFilter==="all" || p.category===activeFilter) && (!searchQuery || p.name.toLowerCase().includes(searchQuery)))
+    .forEach(p=>{
+      const icon = L.divIcon({
+        html:`<div class="custom-icon" style="
+          background:${colors[p.category]};
+          width:28px;height:28px;
+          border-radius:50%;
+          border:2px solid white;
+          display:flex;align-items:center;justify-content:center;
+          color:white;font-size:16px;">${icons[p.category]}</div>`,
+        className:"custom-icon",
+        iconSize:[28,28],
+        iconAnchor:[14,28],
+        popupAnchor:[0,-28]
+      });
+      const marker = L.marker([p.lat,p.lng],{icon});
 
-    const popup = `
-      <div class="popup-card">
-        <div class="popup-header">${icons[p.category]} ${p.name}</div>
-        <div class="popup-body">
-          <div>📍 ${p.address}</div>
-          <div>📞 ${p.phone}</div>
-          <div>🕒 ${p.hours}</div>
-          <div>🍽️ ${p.cuisine}</div>
+      const popup = `
+        <div class="popup-card">
+          <div class="popup-header">${icons[p.category]} ${p.name}</div>
+          <div class="popup-body">
+            <div>📍 ${p.address}</div>
+            <div>📞 ${p.phone}</div>
+            <div>🕒 ${p.hours}</div>
+            <div>🍽️ ${p.cuisine}</div>
+          </div>
         </div>
-      </div>
-    `;
-    marker.bindPopup(popup);
-
-    // Always show tooltip at top
-    marker.bindTooltip(p.name, {direction:'top', offset:[0,-30], permanent:true, className:'marker-label'});
-
-    markerCluster.addLayer(marker);
-  });
+      `;
+      marker.bindPopup(popup);
+      marker.bindTooltip(p.name, {direction:'top', offset:[0,-30], permanent:true, className:'marker-label'});
+      markerCluster.addLayer(marker);
+    });
   map.addLayer(markerCluster);
-  updateStats(`📍 ${places.filter(p=>activeFilter==="all" || p.category===activeFilter).length} places shown`);
+
+  stats.textContent = "";
+}
+
+// "You are here" marker
+let userMarker;
+function locateUser() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(position => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      if (userMarker) map.removeLayer(userMarker);
+
+      const icon = L.divIcon({
+        html: `<div style="
+                background:#1e90ff;
+                width:24px; height:24px;
+                border-radius:50%;
+                border:2px solid white;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:white;
+                font-weight:bold;
+                font-size:12px;">
+                📍
+               </div>`,
+        className: "",
+        iconSize: [24,24],
+        iconAnchor: [12,24],
+        popupAnchor: [0,-24]
+      });
+
+      userMarker = L.marker([lat,lng], {icon}).addTo(map).bindPopup("You are here!").openPopup();
+      map.setView([lat,lng], 15);
+    }, error => {
+      console.warn("Geolocation error:", error);
+    });
+  } else {
+    console.warn("Geolocation not supported by this browser.");
+  }
 }
 
 // Filter buttons
@@ -181,10 +262,7 @@ const buttons = ["all","fastfood","cafe","restaurant"];
 buttons.forEach(id=>{
   document.getElementById("filter-"+id).addEventListener("click",()=>{
     activeFilter = id;
-    buttons.forEach(b=>{
-      const btn = document.getElementById("filter-"+b);
-      btn.classList.remove("filter-active");
-    });
+    buttons.forEach(b=>document.getElementById("filter-"+b).classList.remove("filter-active"));
     document.getElementById("filter-"+id).classList.add("filter-active");
     addMarkersToMap(allPlaces);
   });
@@ -197,6 +275,7 @@ buttons.forEach(id=>{
   addMarkersToMap(allPlaces);
   document.getElementById("filter-all").classList.add("filter-active");
   await fetchRealTashkentPlaces();
+  locateUser(); // Show "You are here" marker
 })();
 </script>
 
