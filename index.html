@@ -24,17 +24,55 @@
       border-radius: 20px;
       font-size: 14px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      z-index: 1000;
+      z-index: 1001;
   }
-  .popup-content {min-width: 220px;}
-  .popup-title {font-weight: bold; font-size: 16px; margin-bottom: 4px;}
-  .popup-info {font-size: 14px; color: #333;}
+  .filter-buttons {
+      position: fixed;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      z-index: 1001;
+  }
+  .filter-buttons button {
+      margin: 0 4px;
+      padding: 4px 10px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: bold;
+      color: white;
+  }
+  .filter-active {box-shadow: 0 0 0 2px white inset;}
+  .popup-card {min-width: 220px;}
+  .popup-header {font-weight: bold; font-size: 16px; margin-bottom: 4px;}
+  .popup-body {font-size: 14px; color: #333;}
+  .marker-label {
+    background: rgba(255,255,255,0.9);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #333;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="stats" class="stats">Loading real food places...</div>
+<div class="filter-buttons">
+  <button id="filter-all" style="background:#3742fa;">All</button>
+  <button id="filter-fastfood" style="background:#FF4757;">🍔 Fast Food</button>
+  <button id="filter-cafe" style="background:#FFA502;">☕ Cafe</button>
+  <button id="filter-restaurant" style="background:#2ED573;">🍽️ Restaurant</button>
+</div>
 
 <!-- Leaflet & MarkerCluster JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -48,121 +86,119 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const stats = document.getElementById('stats');
 const markerCluster = L.markerClusterGroup();
-let cachedPlaces = null;
+let allPlaces = [];
+let activeFilter = "all";
 
-function updateStats(text) {
-  stats.textContent = text;
-}
+// Icons and colors
+const icons = {fastfood:'🍔', cafe:'☕', restaurant:'🍽️'};
+const colors = {fastfood:'#FF4757', cafe:'#FFA502', restaurant:'#2ED573'};
 
-// Fetch and display real OSM food places
+function updateStats(text){ stats.textContent = text; }
+
+// Fetch OSM places
 async function fetchRealTashkentPlaces() {
-  updateStats("🔄 Loading real food places from OpenStreetMap...");
-  const bbox = "41.25,69.15,41.37,69.35"; // Tashkent central area
+  updateStats("🔄 Loading real food places...");
+  const bbox = "41.25,69.15,41.37,69.35";
+  const query = `[out:json][timeout:25];(node["amenity"~"restaurant|cafe|fast_food|bar|food_court"](${bbox}););out body;`;
 
-  const query = `
-  [out:json][timeout:25];
-  (
-    node["amenity"~"restaurant|cafe|fast_food|bar|food_court"](${bbox});
-  );
-  out body;
-  `;
-
-  try {
-    const response = await fetch("https://overpass.kumi.systems/api/interpreter", {
-      method: "POST",
-      headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: "data=" + encodeURIComponent(query)
+  try{
+    const response = await fetch("https://overpass.kumi.systems/api/interpreter",{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:"data="+encodeURIComponent(query)
     });
-
-    if (!response.ok) throw new Error("Overpass API error " + response.status);
+    if(!response.ok) throw new Error("Overpass API error "+response.status);
     const data = await response.json();
 
-    const places = data.elements
-      .filter(e => e.type === "node" && e.lat && e.lon)
-      .map(e => ({
-        id: e.id,
-        name: e.tags?.name || "Unnamed place",
-        category:
-          e.tags?.amenity === "fast_food" ? "fastfood" :
-          e.tags?.amenity === "cafe" ? "cafe" :
-          "restaurant",
-        lat: e.lat,
-        lng: e.lon,
-        phone: e.tags?.phone || e.tags?.["contact:phone"] || e.tags?.["contact:mobile"] || "Not provided",
-        address: e.tags?.["addr:street"] ? `${e.tags["addr:street"]}, Tashkent` : "Tashkent",
-        hours: e.tags?.opening_hours || "Not specified",
-        cuisine: e.tags?.cuisine || "General"
+    allPlaces = data.elements
+      .filter(e=>e.type==='node' && e.lat && e.lon)
+      .map(e=>({
+        id:e.id,
+        name:e.tags?.name || "Unnamed place",
+        category:e.tags?.amenity==="fast_food"?"fastfood":e.tags?.amenity==="cafe"?"cafe":"restaurant",
+        lat:e.lat,
+        lng:e.lon,
+        phone:e.tags?.phone || e.tags?.["contact:phone"] || e.tags?.["contact:mobile"] || "Not provided",
+        address:e.tags?.["addr:street"]?`${e.tags["addr:street"]}, Tashkent`:"Tashkent",
+        hours:e.tags?.opening_hours || "Not specified",
+        cuisine:e.tags?.cuisine || "General"
       }));
 
-    console.log("Fetched:", places.length, "places");
-    updateStats(`✅ Loaded ${places.length} real food places`);
-    localStorage.setItem("tashkentFoodData", JSON.stringify(places));
-    return places;
-  } catch (err) {
-    console.error("Error fetching OSM data:", err);
+    updateStats(`✅ Loaded ${allPlaces.length} real food places`);
+    localStorage.setItem("tashkentFoodData", JSON.stringify(allPlaces));
+    addMarkersToMap(allPlaces);
+  }catch(err){
+    console.error(err);
     updateStats("⚠️ Loading cached data...");
     const cache = localStorage.getItem("tashkentFoodData");
-    return cache ? JSON.parse(cache) : [];
+    if(cache) allPlaces = JSON.parse(cache), addMarkersToMap(allPlaces);
   }
 }
 
-// Add markers with clustering
-function addMarkersToMap(places) {
+// Add markers
+function addMarkersToMap(places){
   markerCluster.clearLayers();
-
-  places.forEach(p => {
-    const color =
-      p.category === "fastfood" ? "#FF4757" :
-      p.category === "cafe" ? "#FFA502" :
-      "#2ED573";
-
+  places.filter(p=>activeFilter==="all" || p.category===activeFilter).forEach(p=>{
     const icon = L.divIcon({
-      html: `<div style="
-        background:${color};
+      html:`<div style="
+        background:${colors[p.category]};
         width:28px;height:28px;
         border-radius:50%;
         border:2px solid white;
         display:flex;align-items:center;justify-content:center;
-        color:white;font-size:14px;">🍴</div>`,
-      className: "custom-icon",
-      iconSize: [28, 28],
-      iconAnchor: [14, 28],
-      popupAnchor: [0, -28]
+        color:white;font-size:16px;">${icons[p.category]}</div>`,
+      className:"custom-icon",
+      iconSize:[28,28],
+      iconAnchor:[14,28],
+      popupAnchor:[0,-28]
     });
+    const marker = L.marker([p.lat,p.lng],{icon});
 
     const popup = `
-      <div class="popup-content">
-        <div class="popup-title">${p.name}</div>
-        <div class="popup-info">📍 ${p.address}</div>
-        <div class="popup-info">📞 ${p.phone}</div>
-        <div class="popup-info">🕒 ${p.hours}</div>
-        <div class="popup-info">🍽️ ${p.cuisine}</div>
+      <div class="popup-card">
+        <div class="popup-header">${icons[p.category]} ${p.name}</div>
+        <div class="popup-body">
+          <div>📍 ${p.address}</div>
+          <div>📞 ${p.phone}</div>
+          <div>🕒 ${p.hours}</div>
+          <div>🍽️ ${p.cuisine}</div>
+        </div>
       </div>
     `;
+    marker.bindPopup(popup);
 
-    const marker = L.marker([p.lat, p.lng], {icon}).bindPopup(popup);
+    // Always show tooltip at top
+    marker.bindTooltip(p.name, {direction:'top', offset:[0,-30], permanent:true, className:'marker-label'});
+
     markerCluster.addLayer(marker);
   });
-
   map.addLayer(markerCluster);
-  updateStats(`📍 ${places.length} places shown`);
+  updateStats(`📍 ${places.filter(p=>activeFilter==="all" || p.category===activeFilter).length} places shown`);
 }
 
-// Initialize app
-(async function init() {
-  const cached = localStorage.getItem("tashkentFoodData");
-  if (cached) {
-    console.log("Using cached data");
-    addMarkersToMap(JSON.parse(cached));
-    updateStats("⚡ Showing cached data...");
-  }
+// Filter buttons
+const buttons = ["all","fastfood","cafe","restaurant"];
+buttons.forEach(id=>{
+  document.getElementById("filter-"+id).addEventListener("click",()=>{
+    activeFilter = id;
+    buttons.forEach(b=>{
+      const btn = document.getElementById("filter-"+b);
+      btn.classList.remove("filter-active");
+    });
+    document.getElementById("filter-"+id).classList.add("filter-active");
+    addMarkersToMap(allPlaces);
+  });
+});
 
-  const places = await fetchRealTashkentPlaces();
-  if (places.length > 0) addMarkersToMap(places);
-  else updateStats("❌ No places found.");
+// Init
+(async function init(){
+  const cached = localStorage.getItem("tashkentFoodData");
+  if(cached) allPlaces = JSON.parse(cached);
+  addMarkersToMap(allPlaces);
+  document.getElementById("filter-all").classList.add("filter-active");
+  await fetchRealTashkentPlaces();
 })();
 </script>
 
 </body>
 </html>
-
