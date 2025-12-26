@@ -1,120 +1,168 @@
-#!/usr/bin/env python3
-"""
-Telegram Bot for Uzbek Food Map
-Compatible with python-telegram-bot 21.0
-"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tashkent Food Map (Optimized)</title>
 
-import os
-import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+<!-- Leaflet & MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
-# ========== CONFIGURATION ==========
-# Get token from environment variable
-TOKEN = os.getenv("BOT_TOKEN", "8072469050:AAEci8K1Fiv7G0jLWd2Jx_vBCabCSyMn640")
+<style>
+  * {margin: 0; padding: 0; box-sizing: border-box;}
+  body {font-family: system-ui, sans-serif;}
+  #map {height: 100vh; width: 100vw;}
+  .stats {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      z-index: 1000;
+  }
+  .popup-content {min-width: 220px;}
+  .popup-title {font-weight: bold; font-size: 16px; margin-bottom: 4px;}
+  .popup-info {font-size: 14px; color: #333;}
+</style>
+</head>
+<body>
 
-# UPDATE THIS URL to your actual GitHub URL
-MINI_APP_URL = "https://cat-k235.github.io/tashkent-food-telegram-app/"
+<div id="map"></div>
+<div id="stats" class="stats">Loading real food places...</div>
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+<!-- Leaflet & MarkerCluster JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
+<script>
+const map = L.map('map').setView([41.2995, 69.2401], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
+const stats = document.getElementById('stats');
+const markerCluster = L.markerClusterGroup();
+let cachedPlaces = null;
 
-    # Create keyboard with Mini App button
-    keyboard = [
-        [InlineKeyboardButton("🗺️ OPEN FOOD MAP", web_app={"url": MINI_APP_URL})],
-        [InlineKeyboardButton("📍 Find Near Me", callback_data="location")],
-        [InlineKeyboardButton("📞 Contact Support", url="https://t.me/yourusername")]
-    ]
+function updateStats(text) {
+  stats.textContent = text;
+}
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
+// Fetch and display real OSM food places
+async function fetchRealTashkentPlaces() {
+  updateStats("🔄 Loading real food places from OpenStreetMap...");
+  const bbox = "41.25,69.15,41.37,69.35"; // Tashkent central area
 
-    await update.message.reply_text(
-        f"🍽️ *Assalomu alaykum, {user.first_name}!*\n\n"
-        "*O'zbekiston Oziq-ovqat Xaritasi* ga xush kelibsiz!\n\n"
-        "✅ *Qanday foydalanish:*\n"
-        "1. Quyidagi tugmani bosing\n"
-        "2. Xaritadan ovqatlanish joylarini toping\n"
-        "3. Telefon raqamlarini ko'ring\n"
-        "4. To'g'ridan-to'g'ri qo'ng'iroq qiling\n\n"
-        "📍 *Toshkent shahridagi barcha restoranlar, kafelar va tez ovqat joylari*",
-        reply_markup=reply_markup,
-        parse_mode='Markdown'
-    )
+  const query = `
+  [out:json][timeout:25];
+  (
+    node["amenity"~"restaurant|cafe|fast_food|bar|food_court"](${bbox});
+  );
+  out body;
+  `;
 
+  try {
+    const response = await fetch("https://overpass.kumi.systems/api/interpreter", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: "data=" + encodeURIComponent(query)
+    });
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a message when the command /help is issued."""
-    await update.message.reply_text(
-        "🆘 *Yordam:*\n\n"
-        "*/start* - Botni ishga tushirish\n"
-        "*/help* - Yordam olish\n"
-        "*/map* - Xaritani ochish\n\n"
-        "📍 *Muammo bo'lsa:*\n"
-        "1. Internet aloqangizni tekshiring\n"
-        "2. Botni qayta ishga tushiring: /start\n"
-        "3. @yourusername ga murojaat qiling",
-        parse_mode='Markdown'
-    )
+    if (!response.ok) throw new Error("Overpass API error " + response.status);
+    const data = await response.json();
 
+    const places = data.elements
+      .filter(e => e.type === "node" && e.lat && e.lon)
+      .map(e => ({
+        id: e.id,
+        name: e.tags?.name || "Unnamed place",
+        category:
+          e.tags?.amenity === "fast_food" ? "fastfood" :
+          e.tags?.amenity === "cafe" ? "cafe" :
+          "restaurant",
+        lat: e.lat,
+        lng: e.lon,
+        phone: e.tags?.phone || e.tags?.["contact:phone"] || e.tags?.["contact:mobile"] || "Not provided",
+        address: e.tags?.["addr:street"] ? `${e.tags["addr:street"]}, Tashkent` : "Tashkent",
+        hours: e.tags?.opening_hours || "Not specified",
+        cuisine: e.tags?.cuisine || "General"
+      }));
 
-async def map_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /map command - directly opens Mini App."""
-    keyboard = [[InlineKeyboardButton("🗺️ Hozir ochish", web_app={"url": MINI_APP_URL})]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    console.log("Fetched:", places.length, "places");
+    updateStats(`✅ Loaded ${places.length} real food places`);
+    localStorage.setItem("tashkentFoodData", JSON.stringify(places));
+    return places;
+  } catch (err) {
+    console.error("Error fetching OSM data:", err);
+    updateStats("⚠️ Loading cached data...");
+    const cache = localStorage.getItem("tashkentFoodData");
+    return cache ? JSON.parse(cache) : [];
+  }
+}
 
-    await update.message.reply_text(
-        "Toshkent oziq-ovqat xaritasi ochilmoqda...",
-        reply_markup=reply_markup
-    )
+// Add markers with clustering
+function addMarkersToMap(places) {
+  markerCluster.clearLayers();
 
+  places.forEach(p => {
+    const color =
+      p.category === "fastfood" ? "#FF4757" :
+      p.category === "cafe" ? "#FFA502" :
+      "#2ED573";
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button callbacks."""
-    query = update.callback_query
-    await query.answer()
+    const icon = L.divIcon({
+      html: `<div style="
+        background:${color};
+        width:28px;height:28px;
+        border-radius:50%;
+        border:2px solid white;
+        display:flex;align-items:center;justify-content:center;
+        color:white;font-size:14px;">🍴</div>`,
+      className: "custom-icon",
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+      popupAnchor: [0, -28]
+    });
 
-    if query.data == "location":
-        await query.message.reply_text(
-            "📍 *Joylashuvingizni topish:*\n\n"
-            "1. Xaritani oching (pastdagi tugma)\n"
-            "2. 📍 belgisini bosing\n"
-            "3. Joylashuvga ruxsat bering\n"
-            "4. Xarita sizning joylashuvingizga yaqinlashadi\n\n"
-            "Eng yaqin ovqatlanish joylarini toping!",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🗺️ Xaritani ochish", web_app={"url": MINI_APP_URL})]
-            ]),
-            parse_mode='Markdown'
-        )
+    const popup = `
+      <div class="popup-content">
+        <div class="popup-title">${p.name}</div>
+        <div class="popup-info">📍 ${p.address}</div>
+        <div class="popup-info">📞 ${p.phone}</div>
+        <div class="popup-info">🕒 ${p.hours}</div>
+        <div class="popup-info">🍽️ ${p.cuisine}</div>
+      </div>
+    `;
 
+    const marker = L.marker([p.lat, p.lng], {icon}).bindPopup(popup);
+    markerCluster.addLayer(marker);
+  });
 
-def main():
-    """Start the bot."""
-    # Create Application
-    application = Application.builder().token(TOKEN).build()
+  map.addLayer(markerCluster);
+  updateStats(`📍 ${places.length} places shown`);
+}
 
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("map", map_command))
+// Initialize app
+(async function init() {
+  const cached = localStorage.getItem("tashkentFoodData");
+  if (cached) {
+    console.log("Using cached data");
+    addMarkersToMap(JSON.parse(cached));
+    updateStats("⚡ Showing cached data...");
+  }
 
-    # Add callback query handler
-    application.add_handler(CallbackQueryHandler(button_handler))
+  const places = await fetchRealTashkentPlaces();
+  if (places.length > 0) addMarkersToMap(places);
+  else updateStats("❌ No places found.");
+})();
+</script>
 
-    # Start the bot
-    logger.info("🤖 Bot ishga tushmoqda... @uzbekfoodmapbot")
-    logger.info(f"✅ Token: {TOKEN[:10]}...")  # Show only first 10 chars for security
-    application.run_polling()
+</body>
+</html>
 
-
-if __name__ == '__main__':
-    main()
